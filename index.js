@@ -56,6 +56,7 @@ async function connectToMongoDB() {
             const lessonsCollection = db.collection("lessons")
 
             const lessonData = req.body
+            // console.log("lessonData:", lessonData);
 
             const newLesson = {
                 ...lessonData,
@@ -143,6 +144,117 @@ async function connectToMongoDB() {
                     previousPageStatus: page > 1
                 }
             });
+        })
+
+        app.get("/lessons/:id", verifyToken, async (req, res) => {
+            const { id } = req.params
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
+            if (!lesson) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Lesson not found"
+                })
+            }
+
+            const isOwner = lesson.creatorEmail === req.user.email
+            const isAdmin = req.user.role === "admin"
+
+            // private lesson, only owner/admin can view
+            if (lesson.visibility === "Private" && !isOwner && !isAdmin) {
+                return res.status(403).send({
+                    success: false,
+                    message: "This lesson is private"
+                })
+            }
+
+            // premium lesson, free user gets a locked preview only
+            if (lesson.accessLevel === "Premium" && !req.user.isPremium && !isOwner && !isAdmin) {
+                return res.send({
+                    locked: true,
+                    _id: lesson._id,
+                    title: lesson.title,
+                    category: lesson.category,
+                    emotionalTone: lesson.emotionalTone,
+                    creatorName: lesson.creatorName,
+                    creatorImage: lesson.creatorImage,
+                    accessLevel: lesson.accessLevel,
+                    createdAt: lesson.createdAt
+                })
+            }
+
+            res.send({ locked: false, ...lesson })
+        })
+
+        app.patch("/lessons/:id", verifyToken, async (req, res) => {
+            const { id } = req.params
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
+            if (!lesson) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Lesson not found"
+                })
+            }
+
+            const isOwner = lesson.creatorEmail === req.user.email
+            const isAdmin = req.user.role === "admin"
+            if (!isOwner && !isAdmin) {
+                return res.status(403).send({
+                    success: false,
+                    message: "You are not allowed to update this lesson"
+                })
+            }
+
+            const updateData = req.body
+            // console.log("updateData:", updateData);
+            delete updateData._id
+
+            const result = await lessonsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { ...updateData, updatedAt: new Date() } }
+            )
+
+            res.send({
+                success: true,
+                message: "Lesson updated successfully",
+                modifiedCount: result.modifiedCount
+            })
+        })
+
+        app.delete("/lessons/:id", verifyToken, async (req, res) => {
+            const { id } = req.params
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
+            if (!lesson) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Lesson not found"
+                })
+            }
+
+            const isOwner = lesson.creatorEmail === req.user.email
+            const isAdmin = req.user.role === "admin"
+            if (!isOwner && !isAdmin) {
+                return res.status(403).send({
+                    success: false,
+                    message: "You are not allowed to delete this lesson"
+                })
+            }
+
+            const result = await lessonsCollection.deleteOne({ _id: new ObjectId(id) })
+
+            res.send({
+                success: true,
+                message: "Lesson deleted successfully",
+                deletedCount: result.deletedCount
+            })
         })
 
         console.log("You successfully connected to MongoDB!");
