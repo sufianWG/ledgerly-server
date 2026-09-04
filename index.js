@@ -49,7 +49,7 @@ app.get('/', (req, res) => {
 const client = new MongoClient(process.env.MONGODB_URI);
 async function connectToMongoDB() {
     try {
-        await client.connect();
+        // await client.connect();
 
         app.post("/lessons", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
@@ -266,6 +266,9 @@ async function connectToMongoDB() {
 
 connectToMongoDB()
 
-app.listen(port, () => {
-    console.log(`app listening on port ${port}`)
-})
+//  have to remove comment out
+module.exports = app;
+
+// app.listen(port, () => {
+//     console.log(`app listening on port ${port}`)
+// })
