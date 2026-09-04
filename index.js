@@ -146,6 +146,16 @@ async function connectToMongoDB() {
             });
         })
 
+        app.get("/my-lessons", verifyToken, async (req, res) => {
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const myLessons = await lessonsCollection.find({ creatorEmail: req.user.email }).sort({ createdAt: -1 }).toArray()
+            // console.log("myLessons count:", myLessons.length);
+
+            res.send({ lessons: myLessons })
+        })
+
         app.get("/lessons/:id", verifyToken, async (req, res) => {
             const { id } = req.params
             const db = client.db("ledgerlydb")
