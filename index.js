@@ -156,6 +156,35 @@ async function connectToMongoDB() {
             res.send({ lessons: myLessons })
         })
 
+        app.patch("/lessons/:id/like", verifyToken, async (req, res) => {
+            const { id } = req.params
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
+            if (!lesson) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Lesson not found"
+                })
+            }
+
+            const userEmail = req.user.email
+            const alreadyLiked = lesson.likes?.includes(userEmail)
+            // console.log("alreadyLiked:", alreadyLiked);
+
+            const update = alreadyLiked
+                ? { $pull: { likes: userEmail } }
+                : { $addToSet: { likes: userEmail } }
+
+            await lessonsCollection.updateOne({ _id: new ObjectId(id) }, update)
+
+            res.send({
+                success: true,
+                liked: !alreadyLiked
+            })
+        })
+
         app.get("/lessons/:id", verifyToken, async (req, res) => {
             const { id } = req.params
             const db = client.db("ledgerlydb")
