@@ -169,6 +169,38 @@ async function connectToMongoDB() {
             res.send({ totalLessons, totalUsers, totalSaves, totalLikes })
         })
 
+        app.get("/top-contributors", async (req, res) => {
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            const lessons = await lessonsCollection.find({ visibility: "Public" }, {
+                projection: { creatorEmail: 1, creatorName: 1, creatorImage: 1, likes: 1 }
+            }).toArray()
+
+            // aggregation pipeline er bodole plain loop diye email onujayi group kortesi, shohoj rakhar jonno
+            const contributorMap = {}
+            for (const lesson of lessons) {
+                const email = lesson.creatorEmail
+                if (!contributorMap[email]) {
+                    contributorMap[email] = {
+                        email,
+                        name: lesson.creatorName,
+                        image: lesson.creatorImage,
+                        lessonCount: 0,
+                        totalLikes: 0
+                    }
+                }
+                contributorMap[email].lessonCount = contributorMap[email].lessonCount + 1
+                contributorMap[email].totalLikes = contributorMap[email].totalLikes + (lesson.likes?.length || 0)
+            }
+
+            const contributors = Object.values(contributorMap)
+                .sort((a, b) => b.totalLikes - a.totalLikes)
+                .slice(0, 6)
+
+            res.send({ contributors })
+        })
+
         app.get("/my-lessons", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
             const lessonsCollection = db.collection("lessons")
