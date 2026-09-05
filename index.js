@@ -441,6 +441,54 @@ async function connectToMongoDB() {
             })
         })
 
+        app.post("/lessons/:id/report", verifyToken, async (req, res) => {
+            const { id } = req.params
+            // console.log(id)
+            const { reason, details } = req.body
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+            const reportsCollection = db.collection("reports")
+
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
+            if (!lesson) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Lesson not found"
+                })
+            }
+
+            if (lesson.creatorEmail === req.user.email) {
+                return res.status(400).send({
+                    success: false,
+                    message: "You cannot report your own lesson"
+                })
+            }
+
+            const alreadyReported = await reportsCollection.findOne({ lessonId: id, reporterEmail: req.user.email })
+            if (alreadyReported) {
+                return res.status(400).send({
+                    success: false,
+                    message: "You have already reported this lesson"
+                })
+            }
+
+            await reportsCollection.insertOne({
+                lessonId: id,
+                lessonTitle: lesson.title,
+                reporterEmail: req.user.email,
+                reporterName: req.user.name,
+                reason,
+                details: details || "",
+                status: "Pending",
+                createdAt: new Date()
+            })
+
+            res.status(201).send({
+                success: true,
+                message: "Lesson reported, our team will take a look"
+            })
+        })
+
         console.log("You successfully connected to MongoDB!");
         return client;
     } catch (err) {
