@@ -70,7 +70,6 @@ async function connectToMongoDB() {
                 createdAt: new Date(),
                 updatedAt: new Date()
             }
-
             const result = await lessonsCollection.insertOne(newLesson)
             if (!result.acknowledged) {
                 return res.status(500).send({
@@ -156,6 +155,20 @@ async function connectToMongoDB() {
             res.send({ lessons: myLessons })
         })
 
+        app.get("/favorites", verifyToken, async (req, res) => {
+            const db = client.db("ledgerlydb")
+            const favoritesCollection = db.collection("favorites")
+            const lessonsCollection = db.collection("lessons")
+
+            const myFavorites = await favoritesCollection.find({ userEmail: req.user.email }).toArray()
+            const lessonIds = myFavorites.map((fav) => new ObjectId(fav.lessonId))
+            console.log("favorited lesson ids:", lessonIds);
+
+            const lessons = await lessonsCollection.find({ _id: { $in: lessonIds } }).toArray()
+
+            res.send({ lessons })
+        })
+
         app.patch("/lessons/:id/like", verifyToken, async (req, res) => {
             const { id } = req.params
             const db = client.db("ledgerlydb")
@@ -185,10 +198,33 @@ async function connectToMongoDB() {
             })
         })
 
+        app.patch("/lessons/:id/favorite", verifyToken, async (req, res) => {
+            const { id } = req.params
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+            const favoritesCollection = db.collection("favorites")
+
+            const userEmail = req.user.email
+
+            const existingFavorite = await favoritesCollection.findOne({ userEmail, lessonId: id })
+            // console.log("existingFavorite:", existingFavorite);
+
+            if (existingFavorite) {
+                await favoritesCollection.deleteOne({ userEmail, lessonId: id })
+                await lessonsCollection.updateOne({ _id: new ObjectId(id) }, { $inc: { savesCount: -1 } })
+                return res.send({ success: true, favorited: false })
+            }
+
+            await favoritesCollection.insertOne({ userEmail, lessonId: id, createdAt: new Date() })
+            await lessonsCollection.updateOne({ _id: new ObjectId(id) }, { $inc: { savesCount: 1 } })
+            res.send({ success: true, favorited: true })
+        })
+
         app.get("/lessons/:id", verifyToken, async (req, res) => {
             const { id } = req.params
             const db = client.db("ledgerlydb")
             const lessonsCollection = db.collection("lessons")
+            const favoritesCollection = db.collection("favorites")
 
             const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
             if (!lesson) {
@@ -224,7 +260,9 @@ async function connectToMongoDB() {
                 })
             }
 
-            res.send({ locked: false, ...lesson })
+            const existingFavorite = await favoritesCollection.findOne({ userEmail: req.user.email, lessonId: id })
+
+            res.send({ locked: false, isFavorited: !!existingFavorite, ...lesson })
         })
 
         app.patch("/lessons/:id", verifyToken, async (req, res) => {
