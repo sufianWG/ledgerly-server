@@ -245,6 +245,23 @@ async function connectToMongoDB() {
             })
         })
 
+        app.get("/admin/lessons", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const db = client.db("ledgerlydb")
+            const lessonsCollection = db.collection("lessons")
+
+            // admin sob lesson dekhbe, public/private sob - tai kono visibility filter deini
+            const lessons = await lessonsCollection.find({}).sort({ createdAt: -1 }).toArray()
+
+            res.send({ lessons })
+        })
+
         app.get("/favorites", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
             const favoritesCollection = db.collection("favorites")
