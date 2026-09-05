@@ -171,6 +171,37 @@ async function connectToMongoDB() {
             })
         })
 
+        app.get("/admin/stats", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const db = client.db("ledgerlydb")
+            const userCollection = db.collection("user")
+            const lessonsCollection = db.collection("lessons")
+
+            const totalUsers = await userCollection.countDocuments()
+            const premiumUsers = await userCollection.countDocuments({ isPremium: true })
+            const totalLessons = await lessonsCollection.countDocuments()
+            const publicLessons = await lessonsCollection.countDocuments({ visibility: "Public" })
+
+            const recentUsers = await userCollection.find({}, {
+                projection: { name: 1, email: 1, image: 1, role: 1, isPremium: 1, createdAt: 1 }
+            }).sort({ createdAt: -1 }).limit(5).toArray()
+            // console.log("recentUsers:", recentUsers);
+
+            res.send({
+                totalUsers,
+                premiumUsers,
+                totalLessons,
+                publicLessons,
+                recentUsers
+            })
+        })
+
         app.get("/favorites", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
             const favoritesCollection = db.collection("favorites")
