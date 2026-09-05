@@ -95,6 +95,7 @@ async function connectToMongoDB() {
             const search = req.query.search || ""
             const category = req.query.category || ""
             const tone = req.query.tone || ""
+            const featured = req.query.featured || ""
 
             const searchQuery = { visibility: "Public" }
 
@@ -115,6 +116,9 @@ async function connectToMongoDB() {
                     $regex: tone,
                     $options: "i"
                 }
+            }
+            if (featured === "true") {
+                searchQuery.isFeatured = true
             }
 
             const page = Math.max(parseInt(requestedPage) || 1, 1);
@@ -143,6 +147,26 @@ async function connectToMongoDB() {
                     previousPageStatus: page > 1
                 }
             });
+        })
+
+        app.get("/platform-stats", async (req, res) => {
+            const db = client.db("ledgerlydb")
+            const userCollection = db.collection("user")
+            const lessonsCollection = db.collection("lessons")
+
+            const totalLessons = await lessonsCollection.countDocuments({ visibility: "Public" })
+            const totalUsers = await userCollection.countDocuments()
+
+            // homepage stats strip er jonno, sob lesson theke total save r like joge felchi
+            const lessons = await lessonsCollection.find({}, { projection: { savesCount: 1, likes: 1 } }).toArray()
+            let totalSaves = 0
+            let totalLikes = 0
+            for (const lesson of lessons) {
+                totalSaves = totalSaves + (lesson.savesCount || 0)
+                totalLikes = totalLikes + (lesson.likes?.length || 0)
+            }
+
+            res.send({ totalLessons, totalUsers, totalSaves, totalLikes })
         })
 
         app.get("/my-lessons", verifyToken, async (req, res) => {
