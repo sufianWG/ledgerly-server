@@ -414,6 +414,7 @@ async function connectToMongoDB() {
             const { id } = req.params
             const db = client.db("ledgerlydb")
             const lessonsCollection = db.collection("lessons")
+            const reportsCollection = db.collection("reports")
 
             const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) })
             if (!lesson) {
@@ -433,6 +434,8 @@ async function connectToMongoDB() {
             }
 
             const result = await lessonsCollection.deleteOne({ _id: new ObjectId(id) })
+            // lesson delete hoye gele, tar report gulao rekhe kono lav nai, tai shathe shathe shob kete dilam
+            await reportsCollection.deleteMany({ lessonId: id })
 
             res.send({
                 success: true,
@@ -486,6 +489,46 @@ async function connectToMongoDB() {
             res.status(201).send({
                 success: true,
                 message: "Lesson reported, our team will take a look"
+            })
+        })
+
+        app.get("/admin/reports", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const db = client.db("ledgerlydb")
+            const reportsCollection = db.collection("reports")
+
+            const reports = await reportsCollection.find({}).sort({ createdAt: -1 }).toArray()
+
+            res.send({ reports })
+        })
+
+        app.patch("/admin/reports/:id/status", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const { id } = req.params
+            const { status } = req.body
+            const db = client.db("ledgerlydb")
+            const reportsCollection = db.collection("reports")
+
+            await reportsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { status } }
+            )
+
+            res.send({
+                success: true,
+                message: `Report marked as ${status}`
             })
         })
 
