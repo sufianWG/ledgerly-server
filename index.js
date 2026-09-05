@@ -202,6 +202,49 @@ async function connectToMongoDB() {
             })
         })
 
+        app.get("/admin/users", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const db = client.db("ledgerlydb")
+            const userCollection = db.collection("user")
+
+            const users = await userCollection.find({}, {
+                projection: { name: 1, email: 1, image: 1, role: 1, isPremium: 1, createdAt: 1 }
+            }).sort({ createdAt: -1 }).toArray()
+
+            res.send({ users })
+        })
+
+        app.patch("/admin/users/:id/premium", verifyToken, async (req, res) => {
+            if (req.user.role !== "admin") {
+                return res.status(403).send({
+                    success: false,
+                    message: "Admins only"
+                })
+            }
+
+            const { id } = req.params
+            const { isPremium } = req.body
+            const db = client.db("ledgerlydb")
+            const userCollection = db.collection("user")
+
+            const result = await userCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { isPremium: isPremium } }
+            )
+            // console.log("manual premium update result:", result);
+
+            res.send({
+                success: true,
+                message: isPremium ? "User upgraded to Premium" : "User downgraded to Free"
+            })
+        })
+
         app.get("/favorites", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
             const favoritesCollection = db.collection("favorites")
