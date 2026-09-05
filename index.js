@@ -155,6 +155,22 @@ async function connectToMongoDB() {
             res.send({ lessons: myLessons })
         })
 
+        app.patch("/users/upgrade", verifyToken, async (req, res) => {
+            const db = client.db("ledgerlydb")
+            const userCollection = db.collection("user")
+
+            const result = await userCollection.updateOne(
+                { email: req.user.email },
+                { $set: { isPremium: true } }
+            )
+            // console.log("upgrade result:", result);
+
+            res.send({
+                success: true,
+                message: "Account upgraded to Premium"
+            })
+        })
+
         app.get("/favorites", verifyToken, async (req, res) => {
             const db = client.db("ledgerlydb")
             const favoritesCollection = db.collection("favorites")
